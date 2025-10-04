@@ -2,13 +2,14 @@
 pragma solidity >=0.8.0 <0.9.0;
 
 import { Test, console } from "forge-std/Test.sol";
-import { SwapStables } from "../contracts/SwapStables.sol";
-import { ERC20Mock } from "./mocks/ERC20Mock.sol";
-import { MockUniswapV2Router } from "./mocks/MockUniswapV2Router.sol";
+import { SwapStables } from "../../contracts/SwapStables.sol";
+import { ERC20Mock } from "../mocks/ERC20Mock.sol";
+import { MockUniswapV2Router } from "../mocks/MockUniswapV2Router.sol";
+
 
 contract SwapStablesTest is Test {
     SwapStables public swapStablesContract;
-    ERC20Mock public dai;
+    ERC20Mock public dai; 
     address public OWNER = makeAddr("owner"); // Create a random owner or use the account at vm.addr(1)?
     address public SWAPPER = makeAddr("swapper");
     uint256 public constant INITIAL_DAI_SUPPLY = 1000 ether;
@@ -20,7 +21,7 @@ contract SwapStablesTest is Test {
         vm.prank(vm.addr(1));
         dai.transferInternal(vm.addr(1), SWAPPER, 100 ether);
     }
-
+    // Happy Path
     function testSwapStableToETHBestPicksBestPath() public {
         // deploy a mock WETH as a simple address (use the ERC20Mock address as dummy WETH)
         ERC20Mock weth = new ERC20Mock("WETH", "WETH", vm.addr(1), 0);
