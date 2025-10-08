@@ -6,11 +6,13 @@ import { SwapStables } from "../../contracts/SwapStables.sol";
 import { ERC20Mock } from "../mocks/ERC20Mock.sol";
 import { MockUniswapV2Router } from "../mocks/MockUniswapV2Router.sol";
 import { RevertingUniswapMock } from "../mocks/RevertingUniswapMock.sol";
+import { ReentrantUniswapMock } from "../mocks/ReentrantUniswapMock.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { RevertingTransferERC20, ApproveRevertingERC20 } from "../mocks/MockRevertingERC20s.sol";
 
 contract SwapStablesTest is Test {
     event RouterUpdated(address indexed oldRouter, address indexed newRouter);
+    event SwapExecuted(address indexed sender, address indexed tokenIn, uint256 amountIn, uint256 amountOut);
 
     SwapStables public swapStablesContract;
     ERC20Mock public dai;
@@ -31,6 +33,148 @@ contract SwapStablesTest is Test {
         vm.prank(swapStablesContract.owner());
         swapStablesContract.setRouter(address(mockRouter));
         _;
+    }
+
+    // 13. testSwapEmitsEvent
+    function testSwapEmitsEvent() public withMockRouter {
+        address[] memory path = new address[](2);
+        path[0] = address(dai);
+        path[1] = address(mockWeth);
+
+        mockRouter.setPathOut(path, 2 ether);
+
+        address[][] memory paths = new address[][](1);
+        paths[0] = path;
+
+        vm.prank(SWAPPER);
+        ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 10 ether);
+
+        vm.prank(SWAPPER);
+        vm.expectEmit(true, true, true, true);
+        emit SwapExecuted(SWAPPER, address(dai), 10 ether, 2 ether);
+        swapStablesContract.swapStableToETHBest(address(dai), 10 ether, paths, 0, block.timestamp + 1 hours);
+    }
+
+    // 14. testEstimateSkipsShortPaths
+    function testEstimateSkipsShortPaths() public withMockRouter {
+        address[] memory shortPath = new address[](1);
+        shortPath[0] = address(dai);
+
+        address[] memory goodPath = new address[](2);
+        goodPath[0] = address(dai);
+        goodPath[1] = address(mockWeth);
+
+        mockRouter.setPathOut(goodPath, 4 ether);
+
+        address[][] memory paths = new address[][](2);
+        paths[0] = shortPath;
+        paths[1] = goodPath;
+
+        vm.prank(SWAPPER);
+        ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
+
+        uint256 ethBefore = address(SWAPPER).balance;
+        vm.prank(SWAPPER);
+        swapStablesContract.swapStableToETHBest(address(dai), 1 ether, paths, 0, block.timestamp + 1 hours);
+        uint256 ethAfter = address(SWAPPER).balance;
+
+        assertEq(ethAfter - ethBefore, 4 ether);
+    }
+
+    // 15. testRouterInsufficientFundsReverts
+    function testRouterInsufficientFundsReverts() public {
+        // deploy a router with small balance
+        ERC20Mock localWeth = new ERC20Mock("WETH", "WETH", vm.addr(1), 0);
+        MockUniswapV2Router smallRouter = new MockUniswapV2Router(address(localWeth));
+        // fund router with only 1 ether
+        vm.deal(address(smallRouter), 1 ether);
+
+        vm.prank(swapStablesContract.owner());
+        swapStablesContract.setRouter(address(smallRouter));
+
+        address[] memory path = new address[](2);
+        path[0] = address(dai);
+        path[1] = address(localWeth);
+
+        address[][] memory paths = new address[][](1);
+        paths[0] = path;
+
+        // set output larger than router balance to force mock-send-failed
+        smallRouter.setPathOut(path, 2 ether);
+
+        vm.prank(SWAPPER);
+        ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
+
+        vm.prank(SWAPPER);
+        vm.expectRevert(); // mock-send-failed bubbles up
+        swapStablesContract.swapStableToETHBest(address(dai), 1 ether, paths, 0, block.timestamp + 1 hours);
+    }
+
+    // 16. testContractCanReceiveETH
+    function testContractCanReceiveETH() public {
+        uint256 before = address(swapStablesContract).balance;
+        (bool ok,) = payable(address(swapStablesContract)).call{ value: 1 ether }("");
+        require(ok, "send failed");
+        assertEq(address(swapStablesContract).balance - before, 1 ether);
+    }
+
+    // 17. testReentrancyGuardPreventsReentrancy
+    function testReentrancyGuardPreventsReentrancy() public {
+        // deploy a reentrant router that will call back into SwapStables.swapStableToETHBest
+        ReentrantUniswapMock r = new ReentrantUniswapMock(address(mockWeth));
+        // fund reentrant router
+        vm.deal(address(r), 10 ether);
+
+        vm.prank(swapStablesContract.owner());
+        swapStablesContract.setRouter(address(r));
+
+        // make the router attempt to reenter SwapStables during swap
+        r.setTarget(address(swapStablesContract));
+
+        address[] memory path = new address[](2);
+        path[0] = address(dai);
+        path[1] = address(mockWeth);
+
+        address[][] memory paths = new address[][](1);
+        paths[0] = path;
+
+        // configure router to attempt reentrant call
+        r.setPathOut(path, 1 ether);
+
+        vm.prank(SWAPPER);
+        ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
+
+        vm.prank(SWAPPER);
+        vm.expectRevert(); // reentrancy should cause revert via nonReentrant
+        swapStablesContract.swapStableToETHBest(address(dai), 1 ether, paths, 0, block.timestamp + 1 hours);
+    }
+
+    // 18. testMultipleEqualPathsStillSucceeds
+    function testMultipleEqualPathsStillSucceeds() public withMockRouter {
+        address[] memory p1 = new address[](2);
+        p1[0] = address(dai);
+        p1[1] = address(mockWeth);
+
+        address[] memory p2 = new address[](2);
+        p2[0] = address(dai);
+        p2[1] = address(mockWeth);
+
+        mockRouter.setPathOut(p1, 2 ether);
+        mockRouter.setPathOut(p2, 2 ether);
+
+        address[][] memory paths = new address[][](2);
+        paths[0] = p1;
+        paths[1] = p2;
+
+        vm.prank(SWAPPER);
+        ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
+
+        uint256 ethBefore = address(SWAPPER).balance;
+        vm.prank(SWAPPER);
+        swapStablesContract.swapStableToETHBest(address(dai), 1 ether, paths, 0, block.timestamp + 1 hours);
+        uint256 ethAfter = address(SWAPPER).balance;
+
+        assertEq(ethAfter - ethBefore, 2 ether);
     }
 
     // Modifier to deploy and set a reverting mock router
@@ -219,7 +363,7 @@ contract SwapStablesTest is Test {
         ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
 
         vm.prank(SWAPPER);
-        vm.expectRevert(bytes("no-valid-path"));
+        vm.expectRevert(bytes("SwapStables: NO_VALID_PATH"));
         swapStablesContract.swapStableToETHBest(address(dai), 1 ether, paths, 0, block.timestamp + 1 hours);
     }
 
@@ -266,7 +410,7 @@ contract SwapStablesTest is Test {
         ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
 
         vm.prank(SWAPPER);
-        vm.expectRevert(bytes("zero-amount"));
+        vm.expectRevert(bytes("SwapStables: ZERO_AMOUNT_IN"));
         swapStablesContract.swapStableToETHBest(address(dai), 0, paths, 0, block.timestamp + 1 hours);
     }
 
@@ -283,7 +427,7 @@ contract SwapStablesTest is Test {
         ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
 
         vm.prank(SWAPPER);
-        vm.expectRevert(bytes("router-not-set"));
+        vm.expectRevert(bytes("SwapStables: ROUTER_NOT_SET"));
         swapStablesContract.swapStableToETHBest(address(dai), 1 ether, paths, 0, block.timestamp + 1 hours);
     }
 
@@ -295,7 +439,7 @@ contract SwapStablesTest is Test {
         ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
 
         vm.prank(SWAPPER);
-        vm.expectRevert(bytes("no-paths"));
+        vm.expectRevert(bytes("SwapStables: NO_PATHS"));
         swapStablesContract.swapStableToETHBest(address(dai), 1 ether, paths, 0, block.timestamp + 1 hours);
     }
 
