@@ -46,7 +46,7 @@ export default function SwapHeader() {
       </details>
 
       {/* Display links horizontally if on large screen */}
-      <nav className="hidden lg:flex xl:flex gap-3 text-sm text-neutral">
+      <nav className="hidden lg:flex gap-3 text-sm text-neutral">
         <a className="hover:text-gray-200" href="#">
           Docs
         </a>

@@ -5,16 +5,25 @@ import { TokenSelectDropdown } from "./NavBar/Modal/TokenSelectDropdown";
 import { EthNative } from "./assets/EthNative";
 import { TokenLogoAndSymbol } from "./assets/TokenLogoAndSymbol";
 import { InteractiveToken, approvedERC20 } from "./assets/approvedTokens";
-import { formatUnits } from "viem";
-import { useAccount } from "wagmi";
+import { chainsToContracts, erc20Abi } from "./assets/constants";
+import { formatUnits, getContract, parseUnits } from "viem";
+import { useAccount, usePublicClient, useWalletClient } from "wagmi";
 import { Bars3Icon } from "@heroicons/react/24/outline";
+import {
+  useDeployedContractInfo,
+  useScaffoldContract,
+  useScaffoldWriteContract,
+  useTransactor,
+} from "~~/hooks/scaffold-eth";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth/useTargetNetwork";
 import { useWatchBalance } from "~~/hooks/scaffold-eth/useWatchBalance";
 import useUniswapPrice from "~~/hooks/useUniswapPrice";
+import { AllowedChainIds } from "~~/utils/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth/notification";
 
 export default function SwapCard() {
-  const [amount, setAmount] = useState(0);
+  /* States */
+  const [amount, setAmount] = useState("0");
   const [stableToken, setStableToken] = useState<InteractiveToken>(approvedERC20[1]); // lifted state
   const [ethPrice, setEthPrice] = useState(0.0);
   const [ethPerStablePrice, setEthPerStablePrice] = useState(0);
@@ -22,9 +31,29 @@ export default function SwapCard() {
   const [isOpenSettings, setOpenSettings] = useState(false);
   // flash flag for small UI color animation when price updates
   const [priceUpdated, setPriceUpdated] = useState(false);
+  // UI states for on-chain operations
+  const [isApproving, setIsApproving] = useState(false);
+  const [isSwapping, setIsSwapping] = useState(false);
 
-  const { address } = useAccount();
+  const { address, chain } = useAccount();
+  const { data: walletClient } = useWalletClient();
+  const writeTx = useTransactor();
+
+  // contract hooks
   const { targetNetwork } = useTargetNetwork();
+  const publicClient = usePublicClient({ chainId: targetNetwork?.id });
+  const { data: deployedSwap } = useDeployedContractInfo({
+    contractName: "SwapStables",
+    chainId: targetNetwork?.id as AllowedChainIds,
+  });
+  const { data: swapContract } = useScaffoldContract({
+    contractName: "SwapStables",
+    walletClient: walletClient ?? undefined,
+  });
+  const { writeContractAsync: writeSwapAsync } = useScaffoldWriteContract({
+    contractName: "SwapStables",
+    chainId: targetNetwork?.id as any,
+  });
 
   // Fetch balance for selected token
   const { data: balanceData } = useWatchBalance({
@@ -48,6 +77,7 @@ export default function SwapCard() {
     ttlMs: 14000,
   });
 
+  /* useEffects  */
   // keep local states in sync with hook
   useEffect(() => {
     if (hookError) {
@@ -73,13 +103,116 @@ export default function SwapCard() {
     }
   }, [rawPrice]);
 
+  const onSwapClick = async () => {
+    // basic validation
+    if (!address) return notification.error("Connect wallet to swap");
+    if (!amount || Number(amount) <= 0) return notification.error("Enter an amount > 0");
+    if (!swapContract) return notification.error("Swap contract not loaded");
+    const chainId = targetNetwork?.id ?? 31337;
+
+    // ensure wallet is connected to the same network as the targetNetwork for writes
+    if (chain?.id && targetNetwork?.id && chain.id !== targetNetwork.id) {
+      notification.error(`Please switch your wallet network to ${targetNetwork.name} before attempting the swap`);
+      return;
+    }
+
+    // compute swap address (prefer deployed metadata, fall back to constants)
+    const swapAddressFromDeployed = deployedSwap?.address as `0x${string}` | undefined;
+    const swapAddressFromConstants = chainsToContracts[chainId]?.SwapStables as `0x${string}` | undefined;
+    const swapAddress = swapAddressFromDeployed ?? swapAddressFromConstants;
+
+    try {
+      const stableAmount = parseUnits(amount, balanceData?.decimals ?? 18);
+
+      // 1) approve if needed
+      setIsApproving(true);
+      notification.info(`Checking allowance for ${stableToken.symbol}...`);
+
+      if (!walletClient || !publicClient) {
+        notification.error("Wallet client or public client not available");
+        setIsApproving(false);
+        return;
+      }
+
+      if (!swapAddress) {
+        notification.error("Swap contract not deployed on selected network");
+        setIsApproving(false);
+        return;
+      }
+
+      const tokenContract = getContract({
+        address: stableToken.address as `0x${string}`,
+        abi: erc20Abi as any,
+        client: {
+          public: publicClient,
+          wallet: walletClient,
+        },
+      });
+
+      const allowance = (await tokenContract.read.allowance([address as `0x${string}`, swapAddress])) as bigint;
+      if (allowance < stableAmount) {
+        notification.info(`Requesting approval for ${stableToken.symbol}...`);
+        const makeApprove = () => tokenContract.write.approve({ args: [swapAddress, stableAmount] } as any);
+        await writeTx(makeApprove);
+        notification.success("Approval submitted");
+      } else {
+        notification.info("Sufficient allowance, skipping approval");
+      }
+    } catch (e: any) {
+      console.error(e);
+      notification.error("Approval failed: " + (e?.message ?? ""));
+    } finally {
+      setIsApproving(false);
+    }
+
+    // 2) perform swap
+    try {
+      setIsSwapping(true);
+      notification.info("Preparing swap transaction...");
+
+      // build simple args: tokenIn, amountIn, paths, amountOutMin, deadline
+      const tokenIn = stableToken.address as `0x${string}`;
+      const amountIn = parseUnits(amount, balanceData?.decimals ?? 18);
+
+      // Note: SwapStables expects address[][] calldata paths. For now we pass a single direct path [tokenIn, WETH]
+      const wethAddress = chainsToContracts[chainId]?.weth as `0x${string}`;
+      const paths = [[tokenIn, wethAddress]];
+      const amountOutMin = 0;
+      const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes from now
+
+      // Use scaffold write helper which wraps simulation & transactor
+      // sanity check: ensure contract code exists at the swap address on the configured RPC
+      const code = await publicClient?.getCode({ address: swapAddress as `0x${string}` });
+      if (!code || code === "0x" || code === "0x0") {
+        notification.error(
+          `No contract code found at ${swapAddress} on the selected RPC. Did you deploy the contract to this network?`,
+        );
+        setIsSwapping(false);
+        return;
+      }
+
+      const tx = await writeSwapAsync({
+        functionName: "swapStableToETHBest",
+        args: [tokenIn, amountIn, paths, BigInt(amountOutMin), BigInt(deadline)],
+      });
+      if (tx) {
+        notification.success("Swap submitted, awaiting confirmation...");
+      }
+    } catch (e: any) {
+      console.error(e);
+      notification.error("Swap failed: " + (e?.message ?? ""));
+    } finally {
+      setIsSwapping(false);
+    }
+  };
+
   return (
     <div className="mx-auto w-full max-w-lg px-4">
       <div className="rounded-3xl bg-white/6 backdrop-blur-lg border border-white/10 p-6 shadow-2xl">
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-2xl font-semibold text-white">Swap Stable → wETH</h2>
-            <p className="text-sm text-gray-300 mt-1">Auto-selects most profitable path on Uniswap v2</p>
+            <p className="text-sm text-gray-300 mt-1">Swap DAI/USDC on Uniswap v2</p>
           </div>
           <Bars3Icon onClick={() => setOpenSettings(!isOpenSettings)} className="h-5 w-5" />
         </div>
@@ -87,28 +220,29 @@ export default function SwapCard() {
         <div className="mt-6 space-y-4">
           {/* From row */}
           <div className="flex items-center justify-between bg-white/4 rounded-xl p-3">
-            <div className="flex items-center gap-3">
-              <button>
+            <div className="flex items-center gap-2">
+              <button className="btn-sm">
                 <TokenSelectDropdown stableToken={stableToken} setStableToken={setStableToken}></TokenSelectDropdown>
               </button>
 
               <div>
                 <div className="text-sm text-gray-200">From</div>
-                <div className="text-xs text-gray-400 text-nowrap">
+                <div className="text-xs text-gray-400 md:text-nowrap ">
                   Balance: {formattedBalance} {stableToken.symbol}
                 </div>
               </div>
             </div>
             <input
-              className="bg-transparent text-right text-2xl font-medium max-w-40 outline-none wrap-normal"
+              type="text"
+              className="bg-transparent text-right text-2xl font-medium md:max-w-40 max-w-[30%] shrink-1 outline-none wrap-normal"
               value={amount}
-              onChange={e => setAmount(Number(e.target.value) || 0)}
+              onChange={e => setAmount(e.target.value)}
             />
           </div>
 
           {/* To row */}
           <div className="flex items-center justify-between bg-white/3 rounded-xl p-3">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <TokenLogoAndSymbol url={EthNative.logoUrl} tokenName={EthNative.name} />
               <div>
                 <div className="text-sm text-gray-200">To</div>
@@ -137,7 +271,7 @@ export default function SwapCard() {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
                   </svg>
                 ) : null}
-                ≈ {(amount * ethPerStablePrice).toFixed(8)} wETH
+                ≈ {(Number(amount) * ethPerStablePrice).toFixed(8)} wETH
               </div>
               <div
                 className={`text-xs transition-colors duration-300 ${priceUpdated ? "text-gray-400/75" : "text-gray-400"}`}
@@ -150,8 +284,16 @@ export default function SwapCard() {
           {/* NEEDS SWAP FUNCTIONALITY */}
           {/* CTA */}
           <div className="mt-4">
-            <button className="w-full py-4 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 text-white font-semibold shadow-lg hover:scale-[1.02] transition-transform">
-              Swap Now
+            <button
+              onClick={onSwapClick}
+              disabled={isApproving || isSwapping}
+              className={`w-full py-4 rounded-xl text-white font-semibold shadow-lg hover:scale-[1.02] transition-transform ${
+                isApproving || isSwapping
+                  ? "opacity-60 cursor-not-allowed bg-gray-500"
+                  : "bg-gradient-to-r from-indigo-500 to-purple-500"
+              }`}
+            >
+              {isApproving ? "Approving..." : isSwapping ? "Swapping..." : "Swap Now"}
             </button>
           </div>
 

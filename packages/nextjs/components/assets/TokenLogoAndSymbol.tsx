@@ -8,9 +8,10 @@ interface logoProps {
 
 export const TokenLogoAndSymbol = ({ url, tokenName, tokenSymbol }: logoProps) => {
   return (
-    <>
+    <div className="shrink-0 flex">
       <Image src={url} height={40} width={40} alt={tokenName} />
-      <div className="mx-1/2">{tokenSymbol}</div>
-    </>
+      {/* hide symbol on small/mobile (default hidden), show from `sm` and up */}
+      <div className="ml-2 hidden sm:inline-flex items-center ">{tokenSymbol}</div>
+    </div>
   );
 };

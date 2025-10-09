@@ -32,7 +32,7 @@ interface IUniswapV2Router02 {
 }
 
 contract SwapStables is Ownable, ReentrancyGuard {
-    IUniswapV2Router02 public uniV2;
+    IUniswapV2Router02 public uniV2; // On mainnet addr = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
 
     event RouterUpdated(address indexed oldRouter, address indexed newRouter);
     event SwapExecuted(address indexed sender, address indexed tokenIn, uint256 amountIn, uint256 amountOut);
@@ -66,8 +66,8 @@ contract SwapStables is Ownable, ReentrancyGuard {
         view
         returns (uint256 bestOut, uint256 bestIndex)
     {
-        require(address(uniV2) != address(0), "router-not-set");
-        require(paths.length > 0, "no-paths");
+        require(address(uniV2) != address(0), "SwapStables: ROUTER_NOT_SET");
+        require(paths.length > 0, "SwapStables: NO_PATHS");
 
         bestOut = 0;
         bestIndex = 0;
@@ -88,7 +88,7 @@ contract SwapStables is Ownable, ReentrancyGuard {
                 continue;
             }
         }
-        require(bestOut > 0, "no-valid-path");
+        require(bestOut > 0, "SwapStables: NO_VALID_PATH");
     }
 
     /**
@@ -106,9 +106,9 @@ contract SwapStables is Ownable, ReentrancyGuard {
         uint256 amountOutMin,
         uint256 deadline
     ) external nonReentrant returns (uint256 amountOut) {
-        require(amountIn > 0, "zero-amount");
-        require(paths.length > 0, "no-paths");
-        require(address(uniV2) != address(0), "router-not-set");
+        require(amountIn > 0, "SwapStables: ZERO_AMOUNT_IN");
+        require(paths.length > 0, "SwapStables: NO_PATHS");
+        require(address(uniV2) != address(0), "SwapStables: ROUTER_NOT_SET");
 
         // pull tokens from caller
         IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
@@ -131,7 +131,7 @@ contract SwapStables is Ownable, ReentrancyGuard {
 
         // forward ETH to sender
         (bool sent,) = payable(msg.sender).call{ value: amountOut }(" ");
-        require(sent, "eth-send-failed");
+        require(sent, "SwapStables: ETH_SEND_FAILED");
 
         emit SwapExecuted(msg.sender, tokenIn, amountIn, amountOut);
     }

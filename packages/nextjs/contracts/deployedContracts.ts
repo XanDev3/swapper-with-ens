@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   31337: {
     SwapStables: {
-      address: "0x02a01db4650a1a8f007fa9c9af828d9932cd9500",
+      address: "0x49d358d6c96ee0c6a199c28dcf3e0fbd8db5bb33",
       abi: [
         {
           type: "constructor",
@@ -214,7 +214,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 23427987,
+      deployedOnBlock: 23536541,
     },
   },
 } as const;

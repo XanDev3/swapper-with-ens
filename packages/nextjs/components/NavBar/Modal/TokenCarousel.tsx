@@ -25,7 +25,6 @@ function Tokens({ onSelectToken }: { onSelectToken: (token: InteractiveToken) =>
       </div>
 
       <div className="flex flex-col">
-        {/*         <div className="text-sm font-medium text-gray-700">{token.name}</div>*/}
         <div className="text-s text-gray-300 flex items-center gap-2">
           <span className="font-semibold text-[14px]">{token.symbol}</span>
           <span className="text-[14px] text-gray-400 mx-2 ">{shortAddress(token.address)}</span>
