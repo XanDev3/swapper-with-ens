@@ -13,7 +13,12 @@ chain: setup-anvil-wallet
 
 # Start a fork
 fork: setup-anvil-wallet
-	anvil --fork-url ${FORK_URL} --chain-id 31337
+	# If FORK_BLOCK is provided, pass it to anvil so the fork will start at that block
+	if [ -z "${FORK_BLOCK}" ]; then \
+		anvil --fork-url ${FORK_URL} --chain-id 31337 --fork-block-number 23535678; \
+	else \
+		anvil --fork-url ${FORK_URL} --fork-block-number ${FORK_BLOCK} --chain-id 31337; \
+	fi
 
 # Deploy the contracts
 deploy:

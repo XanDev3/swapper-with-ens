@@ -25,6 +25,9 @@ contract DeployYourContract is ScaffoldETHDeploy {
      *      - Export contract addresses & ABIs to `nextjs` packages
      */
     function run() external ScaffoldEthDeployerRunner {
-        new SwapStables();
+        // Deploy SwapStables with a sane default router (Uniswap V2 router on mainnet).
+        // For local testing you can replace this address with a mock router if desired.
+        address UNISWAP_V2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
+        new SwapStables(UNISWAP_V2_ROUTER);
     }
 }

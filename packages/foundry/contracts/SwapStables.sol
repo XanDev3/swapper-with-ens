@@ -32,24 +32,20 @@ interface IUniswapV2Router02 {
 }
 
 contract SwapStables is Ownable, ReentrancyGuard {
-    IUniswapV2Router02 public uniV2; // On mainnet addr = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
+    IUniswapV2Router02 public immutable uniV2; // On mainnet addr = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
 
-    event RouterUpdated(address indexed oldRouter, address indexed newRouter);
     event SwapExecuted(address indexed sender, address indexed tokenIn, uint256 amountIn, uint256 amountOut);
 
-    // keep constructor parameterless for tests; router can be set by owner
-    constructor() Ownable(msg.sender) {
-        // owner set by Ownable
+    // Router is provided at construction and is immutable
+    constructor(address _uniV2) Ownable(msg.sender) {
+        require(_uniV2 != address(0), "SwapStables: INVALID_ROUTER");
+        uniV2 = IUniswapV2Router02(_uniV2);
     }
 
     /**
      * @notice Set the Uniswap V2 router address (owner only)
      */
-    function setRouter(address _uniV2) external onlyOwner {
-        address old = address(uniV2);
-        uniV2 = IUniswapV2Router02(_uniV2);
-        emit RouterUpdated(old, _uniV2);
-    }
+    // Router is immutable and set in constructor; no setter provided.
 
     function _calculateGas() internal view returns (uint256) {
         // simple placeholder: remaining gas * gasprice (best-effort)
@@ -66,7 +62,7 @@ contract SwapStables is Ownable, ReentrancyGuard {
         view
         returns (uint256 bestOut, uint256 bestIndex)
     {
-        require(address(uniV2) != address(0), "SwapStables: ROUTER_NOT_SET");
+        require(address(uniV2) != address(0), "SwapStables: ROUTER_NOT_CONFIGURED");
         require(paths.length > 0, "SwapStables: NO_PATHS");
 
         bestOut = 0;
@@ -108,7 +104,7 @@ contract SwapStables is Ownable, ReentrancyGuard {
     ) external nonReentrant returns (uint256 amountOut) {
         require(amountIn > 0, "SwapStables: ZERO_AMOUNT_IN");
         require(paths.length > 0, "SwapStables: NO_PATHS");
-        require(address(uniV2) != address(0), "SwapStables: ROUTER_NOT_SET");
+        require(address(uniV2) != address(0), "SwapStables: ROUTER_NOT_CONFIGURED");
 
         // pull tokens from caller
         IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
@@ -136,6 +132,6 @@ contract SwapStables is Ownable, ReentrancyGuard {
         emit SwapExecuted(msg.sender, tokenIn, amountIn, amountOut);
     }
 
-    // receive ETH from router when swapping 
+    // receive ETH from router when swapping
     receive() external payable { }
 }
