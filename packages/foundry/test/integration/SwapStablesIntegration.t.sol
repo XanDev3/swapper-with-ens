@@ -28,14 +28,13 @@ contract SwapStablesIntegration is Test, ForkHelpers {
 
     function setUp() public {
         TEST_USER = vm.addr(7777);
-        swapStables = new SwapStables();
+        // Deploy SwapStables with the mainnet router (forked environment expected)
+        swapStables = new SwapStables(UNISWAP_V2_ROUTER);
         // NOTE: Fork creation is done externally by the test runner. Run these tests with:
         //   forge test --fork-url "http://127.0.0.1:8545" --fork-block-number $FORK_BLOCK -vvv test/integration/SwapStablesIntegration.t.sol
         // Optionally set FORK_BLOCK in the environment; if omitted, latest block will be used.
 
-        // Set router to mainnet router (assumes the runner provided a mainnet fork)
-        vm.prank(swapStables.owner());
-        swapStables.setRouter(UNISWAP_V2_ROUTER);
+        // router injected via constructor
     }
 
     /// Helper: find a whale address from a candidate list that holds at least minBalance of token

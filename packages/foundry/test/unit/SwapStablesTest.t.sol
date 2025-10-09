@@ -30,8 +30,8 @@ contract SwapStablesTest is Test {
         mockRouter = new MockUniswapV2Router(address(mockWeth));
         // fund router so it can send ETH during tests
         vm.deal(address(mockRouter), 10 ether);
-        vm.prank(swapStablesContract.owner());
-        swapStablesContract.setRouter(address(mockRouter));
+        // redeploy swap contract using this mock router so tests exercise constructor-injected router
+        swapStablesContract = new SwapStables(address(mockRouter));
         _;
     }
 
@@ -89,8 +89,8 @@ contract SwapStablesTest is Test {
         // fund router with only 1 ether
         vm.deal(address(smallRouter), 1 ether);
 
-        vm.prank(swapStablesContract.owner());
-        swapStablesContract.setRouter(address(smallRouter));
+        // redeploy swap contract to use the smallRouter so the mock router has limited funds
+        swapStablesContract = new SwapStables(address(smallRouter));
 
         address[] memory path = new address[](2);
         path[0] = address(dai);
@@ -125,8 +125,8 @@ contract SwapStablesTest is Test {
         // fund reentrant router
         vm.deal(address(r), 10 ether);
 
-        vm.prank(swapStablesContract.owner());
-        swapStablesContract.setRouter(address(r));
+        // redeploy swap contract to use the reentrant router for this test
+        swapStablesContract = new SwapStables(address(r));
 
         // make the router attempt to reenter SwapStables during swap
         r.setTarget(address(swapStablesContract));
@@ -181,13 +181,18 @@ contract SwapStablesTest is Test {
     modifier withRevertingRouter() {
         lastRevertingRouter = new RevertingUniswapMock(address(0));
         vm.deal(address(lastRevertingRouter), 5 ether);
-        vm.prank(swapStablesContract.owner());
-        swapStablesContract.setRouter(address(lastRevertingRouter));
+        swapStablesContract = new SwapStables(address(lastRevertingRouter));
         _;
     }
 
     function setUp() public {
-        swapStablesContract = new SwapStables();
+        // Default setup: deploy a swap contract with a zero-address router to match legacy tests that
+        // verify initial router state. Tests that need a router should redeploy via modifiers above.
+        // Since constructor requires a non-zero router, we deploy with a placeholder mock router created here.
+        mockWeth = new ERC20Mock("WETH", "WETH", vm.addr(1), 0);
+        mockRouter = new MockUniswapV2Router(address(mockWeth));
+        vm.deal(address(mockRouter), 10 ether);
+        swapStablesContract = new SwapStables(address(mockRouter));
         dai = new ERC20Mock("DAI", "DAI", vm.addr(1), INITIAL_DAI_SUPPLY); // Change address to receive dai supply if necessary
 
         vm.prank(vm.addr(1));
@@ -246,24 +251,12 @@ contract SwapStablesTest is Test {
 
     // 1. testDeployInitialState
     function testDeployInitialState() public {
-        SwapStables s = new SwapStables();
-        // router should be unset and owner should be the deployer
-        assertEq(address(s.uniV2()), address(0));
+        // Since router is required in constructor, deploy with a mock router and ensure owner is correct
+        ERC20Mock localWeth = new ERC20Mock("WETH", "WETH", vm.addr(1), 0);
+        MockUniswapV2Router localRouter = new MockUniswapV2Router(address(localWeth));
+        SwapStables s = new SwapStables(address(localRouter));
+        assertEq(address(s.uniV2()), address(localRouter));
         assertEq(s.owner(), address(this));
-    }
-
-    // 2. testSetRouterOnlyOwnerEmitsEvent
-    function testSetRouterOnlyOwnerEmitsEvent() public {
-        MockUniswapV2Router router = new MockUniswapV2Router(address(0));
-        // expect event when owner sets
-        vm.expectEmit(true, true, true, true);
-        emit RouterUpdated(address(0), address(router));
-        swapStablesContract.setRouter(address(router));
-
-        // non-owner cannot set
-        vm.prank(SWAPPER);
-        vm.expectRevert();
-        swapStablesContract.setRouter(address(router));
     }
 
     // 3. testEstimateBestOutSinglePathReturnsAmount (via swap)
@@ -423,12 +416,17 @@ contract SwapStablesTest is Test {
         address[][] memory paths = new address[][](1);
         paths[0] = path;
 
-        vm.prank(SWAPPER);
-        ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
+        // Since router must be provided at construction, we deploy a contract whose router returns 0
+        // to simulate no valid route rather than an unset router. Reuse a mock router with no outputs.
+        MockUniswapV2Router deadRouter = new MockUniswapV2Router(address(0));
+        SwapStables dead = new SwapStables(address(deadRouter));
 
         vm.prank(SWAPPER);
-        vm.expectRevert(bytes("SwapStables: ROUTER_NOT_SET"));
-        swapStablesContract.swapStableToETHBest(address(dai), 1 ether, paths, 0, block.timestamp + 1 hours);
+        ERC20Mock(dai).approveInternal(SWAPPER, address(dead), 1 ether);
+
+        vm.prank(SWAPPER);
+        vm.expectRevert();
+        dead.swapStableToETHBest(address(dai), 1 ether, paths, 0, block.timestamp + 1 hours);
     }
 
     // 10. testSwapRevertsIfPathsEmpty

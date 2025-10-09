@@ -16,13 +16,12 @@ contract SwapStablesFuzz is Test {
     address public USER = makeAddr("user");
 
     function setUp() public {
-        swap = new SwapStables();
-        dai = new ERC20Mock("DAI", "DAI", vm.addr(1), 1_000_000 ether);
+        // deploy swap with a mock router
         router = new MockUniswapV2Router(vm.addr(2));
+        swap = new SwapStables(address(router));
+        dai = new ERC20Mock("DAI", "DAI", vm.addr(1), 1_000_000 ether);
         // give router a healthy balance so mock sends succeed for bounded outputs
         vm.deal(address(router), 1000 ether);
-        vm.prank(swap.owner());
-        swap.setRouter(address(router));
 
         // seed some balances
         dai.transferInternal(vm.addr(1), USER, 1000 ether);
@@ -230,8 +229,10 @@ contract SwapStablesFuzz is Test {
         // deploy reentrant router and set to swap
         reentrant = new ReentrantUniswapMock(vm.addr(2));
         vm.deal(address(reentrant), 100 ether);
-        vm.prank(swap.owner());
-        swap.setRouter(address(reentrant));
+        reentrant = new ReentrantUniswapMock(vm.addr(2));
+        vm.deal(address(reentrant), 100 ether);
+        // redeploy swap with reentrant router for this test
+        swap = new SwapStables(address(reentrant));
 
         // configure the reentrant router to call back into swap
         reentrant.setTarget(address(swap));

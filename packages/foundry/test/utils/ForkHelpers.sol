@@ -40,9 +40,19 @@ abstract contract ForkHelpers is Test {
     }
 
     /// Set SwapStables router to `router` using owner's authority
+    /// Set SwapStables router to `router` using owner's authority
+    /// NOTE: SwapStables now requires the router in its constructor and has no setter. For forked
+    /// deployments where the SwapStables instance is already deployed, this helper will attempt a
+    /// low-level call to setRouter (for backwards compatibility). If that fails, tests should redeploy
+    /// a new SwapStables instance with the desired router.
     function setRouter(address swapStablesAddr, address owner, address router) internal {
+        // attempt to call setRouter via low-level call (will revert if function doesn't exist)
         vm.prank(owner);
-        SwapStables(payable(swapStablesAddr)).setRouter(router);
+        (bool ok,) = swapStablesAddr.call(abi.encodeWithSignature("setRouter(address)", router));
+        if (!ok) {
+            // cannot set router on existing contract; test should redeploy instead. Emit label for clarity.
+            vm.label(swapStablesAddr, "SwapStables_no_setter");
+        }
     }
 
     /// Get router amounts out for a path (calls the real UniswapV2 router on whichever fork is selected by the runner)

@@ -46,6 +46,9 @@ contract UniswapRouterCallerTest is Test {
         vm.deal(address(this), 10 ether);
     }
 
+    // Allow this test contract to receive ETH when the router unwraps WETH and sends ETH to `address(this)`
+    receive() external payable { }
+
     function testEthToDaiTradeSucceeds() public {
         uint256 deadline = block.timestamp + DEADLINE_DELTA;
 
