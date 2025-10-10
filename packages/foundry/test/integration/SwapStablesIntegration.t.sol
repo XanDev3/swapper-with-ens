@@ -15,7 +15,10 @@ interface IUniswapV2Router02Full {
 }
 
 contract SwapStablesIntegration is Test, ForkHelpers {
+    // custom error declaration for selector matching
+    error SwapStables__ZeroAmountIn();
     // Mainnet addresses
+
     address internal constant UNISWAP_V2_ROUTER = 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D;
     address internal constant WETH = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
     address internal constant DAI = 0x6B175474E89094C44Da98b954EedeAC495271d0F;
@@ -167,8 +170,8 @@ contract SwapStablesIntegration is Test, ForkHelpers {
         paths[0] = path;
 
         vm.prank(TEST_USER);
-        // contract uses a require with message "SwapStables: ZERO_AMOUNT_IN"
-        vm.expectRevert(bytes("SwapStables: ZERO_AMOUNT_IN"));
+        // contract uses a custom error SwapStables__ZeroAmountIn
+        vm.expectRevert(abi.encodeWithSelector(SwapStables__ZeroAmountIn.selector));
         swapStables.swapStableToETHBest(DAI, 0, paths, 0, block.timestamp + 1 hours);
     }
 

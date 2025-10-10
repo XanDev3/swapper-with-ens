@@ -4,9 +4,6 @@ pragma solidity >=0.8.0 <0.9.0;
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-//import univ2 interface
-//import DAI interface
-//import USDC interface
 
 interface IUniswapV2Router02 {
     function WETH() external pure returns (address);
@@ -32,24 +29,25 @@ interface IUniswapV2Router02 {
 }
 
 contract SwapStables is Ownable, ReentrancyGuard {
+    // Custom errors
+    error SwapStables__TransferFromFailed();
+    error SwapStables__InvalidRouter();
+    error SwapStables__RouterNotConfigured();
+    error SwapStables__NoPaths();
+    error SwapStables__NoValidPath();
+    error SwapStables__ZeroAmountIn();
+    error SwapStables__EthSendFailed();
+    error SwapStables__DeadlineExpired();
+    error SwapStables__ApproveFailed();
+
     IUniswapV2Router02 public immutable uniV2; // On mainnet addr = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D"
 
     event SwapExecuted(address indexed sender, address indexed tokenIn, uint256 amountIn, uint256 amountOut);
 
     // Router is provided at construction and is immutable
     constructor(address _uniV2) Ownable(msg.sender) {
-        require(_uniV2 != address(0), "SwapStables: INVALID_ROUTER");
+        if (_uniV2 == address(0)) revert SwapStables__InvalidRouter();
         uniV2 = IUniswapV2Router02(_uniV2);
-    }
-
-    /**
-     * @notice Set the Uniswap V2 router address (owner only)
-     */
-    // Router is immutable and set in constructor; no setter provided.
-
-    function _calculateGas() internal view returns (uint256) {
-        // simple placeholder: remaining gas * gasprice (best-effort)
-        return tx.gasprice * gasleft();
     }
 
     /**
@@ -62,8 +60,8 @@ contract SwapStables is Ownable, ReentrancyGuard {
         view
         returns (uint256 bestOut, uint256 bestIndex)
     {
-        require(address(uniV2) != address(0), "SwapStables: ROUTER_NOT_CONFIGURED");
-        require(paths.length > 0, "SwapStables: NO_PATHS");
+        if (address(uniV2) == address(0)) revert SwapStables__RouterNotConfigured();
+        if (paths.length == 0) revert SwapStables__NoPaths();
 
         bestOut = 0;
         bestIndex = 0;
@@ -84,7 +82,7 @@ contract SwapStables is Ownable, ReentrancyGuard {
                 continue;
             }
         }
-        require(bestOut > 0, "SwapStables: NO_VALID_PATH");
+        if (bestOut == 0) revert SwapStables__NoValidPath();
     }
 
     /**
@@ -102,16 +100,23 @@ contract SwapStables is Ownable, ReentrancyGuard {
         uint256 amountOutMin,
         uint256 deadline
     ) external nonReentrant returns (uint256 amountOut) {
-        require(amountIn > 0, "SwapStables: ZERO_AMOUNT_IN");
-        require(paths.length > 0, "SwapStables: NO_PATHS");
-        require(address(uniV2) != address(0), "SwapStables: ROUTER_NOT_CONFIGURED");
+        if (amountIn == 0) revert SwapStables__ZeroAmountIn();
+        if (paths.length == 0) revert SwapStables__NoPaths();
+        if (address(uniV2) == address(0)) revert SwapStables__RouterNotConfigured();
+
+        // deadline check: protect callers by enforcing deadline locally (don't rely solely on router)
+        if (deadline < block.timestamp) revert SwapStables__DeadlineExpired();
 
         // pull tokens from caller
-        IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        (bool success) = IERC20(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        if (!success) revert SwapStables__TransferFromFailed();
 
-        // approve router
-        IERC20(tokenIn).approve(address(uniV2), 0);
-        IERC20(tokenIn).approve(address(uniV2), amountIn);
+        // approve router (reset then set). Check return values for non-standard tokens that return false
+        bool approved;
+        approved = IERC20(tokenIn).approve(address(uniV2), 0);
+        if (!approved) revert SwapStables__ApproveFailed();
+        approved = IERC20(tokenIn).approve(address(uniV2), amountIn);
+        if (!approved) revert SwapStables__ApproveFailed();
 
         // find best path
         (, uint256 bestIndex) = estimateBestOut(amountIn, paths);
@@ -127,7 +132,7 @@ contract SwapStables is Ownable, ReentrancyGuard {
 
         // forward ETH to sender
         (bool sent,) = payable(msg.sender).call{ value: amountOut }(" ");
-        require(sent, "SwapStables: ETH_SEND_FAILED");
+        if (!sent) revert SwapStables__EthSendFailed();
 
         emit SwapExecuted(msg.sender, tokenIn, amountIn, amountOut);
     }

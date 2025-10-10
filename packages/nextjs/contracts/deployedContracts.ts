@@ -7,11 +7,17 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 const deployedContracts = {
   31337: {
     SwapStables: {
-      address: "0x49d358d6c96ee0c6a199c28dcf3e0fbd8db5bb33",
+      address: "0xbbf04cec8abb447b104f2407c651f16c2c1ace3e",
       abi: [
         {
           type: "constructor",
-          inputs: [],
+          inputs: [
+            {
+              name: "_uniV2",
+              type: "address",
+              internalType: "address",
+            },
+          ],
           stateMutability: "nonpayable",
         },
         {
@@ -35,19 +41,6 @@ const deployedContracts = {
           type: "function",
           name: "renounceOwnership",
           inputs: [],
-          outputs: [],
-          stateMutability: "nonpayable",
-        },
-        {
-          type: "function",
-          name: "setRouter",
-          inputs: [
-            {
-              name: "_uniV2",
-              type: "address",
-              internalType: "address",
-            },
-          ],
           outputs: [],
           stateMutability: "nonpayable",
         },
@@ -137,25 +130,6 @@ const deployedContracts = {
         },
         {
           type: "event",
-          name: "RouterUpdated",
-          inputs: [
-            {
-              name: "oldRouter",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-            {
-              name: "newRouter",
-              type: "address",
-              indexed: true,
-              internalType: "address",
-            },
-          ],
-          anonymous: false,
-        },
-        {
-          type: "event",
           name: "SwapExecuted",
           inputs: [
             {
@@ -212,9 +186,54 @@ const deployedContracts = {
           name: "ReentrancyGuardReentrantCall",
           inputs: [],
         },
+        {
+          type: "error",
+          name: "SwapStables__ApproveFailed",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__DeadlineExpired",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__EthSendFailed",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__InvalidRouter",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__NoPaths",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__NoValidPath",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__RouterNotConfigured",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__TransferFromFailed",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__ZeroAmountIn",
+          inputs: [],
+        },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 23535680,
+      deployedOnBlock: 23536691,
     },
   },
 } as const;

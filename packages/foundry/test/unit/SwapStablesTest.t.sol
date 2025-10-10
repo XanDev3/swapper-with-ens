@@ -11,6 +11,17 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { RevertingTransferERC20, ApproveRevertingERC20 } from "../mocks/MockRevertingERC20s.sol";
 
 contract SwapStablesTest is Test {
+    // Mirror the custom errors from SwapStables so tests can reference selectors
+    error SwapStables__TransferFromFailed();
+    error SwapStables__InvalidRouter();
+    error SwapStables__RouterNotConfigured();
+    error SwapStables__NoPaths();
+    error SwapStables__NoValidPath();
+    error SwapStables__ZeroAmountIn();
+    error SwapStables__EthSendFailed();
+    error SwapStables__ApproveFailed();
+    error SwapStables__DeadlineExpired();
+
     event RouterUpdated(address indexed oldRouter, address indexed newRouter);
     event SwapExecuted(address indexed sender, address indexed tokenIn, uint256 amountIn, uint256 amountOut);
 
@@ -53,6 +64,25 @@ contract SwapStablesTest is Test {
         vm.expectEmit(true, true, true, true);
         emit SwapExecuted(SWAPPER, address(dai), 10 ether, 2 ether);
         swapStablesContract.swapStableToETHBest(address(dai), 10 ether, paths, 0, block.timestamp + 1 hours);
+    }
+
+    // New: test that deadline is enforced by SwapStables and reverts when expired
+    function testSwapRevertsIfDeadlineExpired() public withMockRouter {
+        address[] memory path = new address[](2);
+        path[0] = address(dai);
+        path[1] = address(mockWeth);
+
+        address[][] memory paths = new address[][](1);
+        paths[0] = path;
+
+        // ensure SWAPPER has approval
+        vm.prank(SWAPPER);
+        ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
+
+        // call with expired deadline
+        vm.prank(SWAPPER);
+        vm.expectRevert(abi.encodeWithSelector(SwapStables__DeadlineExpired.selector));
+        swapStablesContract.swapStableToETHBest(address(dai), 1 ether, paths, 0, block.timestamp - 1);
     }
 
     // 14. testEstimateSkipsShortPaths
@@ -356,7 +386,7 @@ contract SwapStablesTest is Test {
         ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
 
         vm.prank(SWAPPER);
-        vm.expectRevert(bytes("SwapStables: NO_VALID_PATH"));
+        vm.expectRevert(abi.encodeWithSelector(SwapStables__NoValidPath.selector));
         swapStablesContract.swapStableToETHBest(address(dai), 1 ether, paths, 0, block.timestamp + 1 hours);
     }
 
@@ -403,7 +433,7 @@ contract SwapStablesTest is Test {
         ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
 
         vm.prank(SWAPPER);
-        vm.expectRevert(bytes("SwapStables: ZERO_AMOUNT_IN"));
+        vm.expectRevert(abi.encodeWithSelector(SwapStables__ZeroAmountIn.selector));
         swapStablesContract.swapStableToETHBest(address(dai), 0, paths, 0, block.timestamp + 1 hours);
     }
 
@@ -437,7 +467,7 @@ contract SwapStablesTest is Test {
         ERC20Mock(dai).approveInternal(SWAPPER, address(swapStablesContract), 1 ether);
 
         vm.prank(SWAPPER);
-        vm.expectRevert(bytes("SwapStables: NO_PATHS"));
+        vm.expectRevert(abi.encodeWithSelector(SwapStables__NoPaths.selector));
         swapStablesContract.swapStableToETHBest(address(dai), 1 ether, paths, 0, block.timestamp + 1 hours);
     }
 
@@ -464,6 +494,31 @@ contract SwapStablesTest is Test {
         vm.expectRevert();
         swapStablesContract.swapStableToETHBest(address(bad), 1 ether, paths, 0, block.timestamp + 1 hours);
         vm.assertEq(bad.balanceOf(address(swapStablesContract)), 0);
+    }
+
+    // New: test that SwapStables reverts with SwapStables__ApproveFailed when approve returns false
+    function testApproveRevertBubblesUp() public withMockRouter {
+        // deploy a token that reverts on approve
+        ApproveRevertingERC20 bad = new ApproveRevertingERC20("BADAPR", "BAD", vm.addr(1), 100 ether);
+
+        address[] memory path = new address[](2);
+        path[0] = address(bad);
+        path[1] = address(mockWeth);
+
+        address[][] memory paths = new address[][](1);
+        paths[0] = path;
+
+        // fund SWAPPER with tokens
+        bad.transferInternal(vm.addr(1), SWAPPER, 10 ether);
+
+        // ensure SWAPPER approved this contract to pull tokens
+        vm.prank(SWAPPER);
+        bad.approveInternal(SWAPPER, address(swapStablesContract), 10 ether);
+
+        vm.prank(SWAPPER);
+        // the token's approve will revert with "approve-reverted" when the contract tries to approve router
+        vm.expectRevert(bytes("approve-reverted"));
+        swapStablesContract.swapStableToETHBest(address(bad), 1 ether, paths, 0, block.timestamp + 1 hours);
     }
 
     // 12. testApproveFailureDoesntLeaveTokensInContract

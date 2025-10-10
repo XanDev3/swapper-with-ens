@@ -50,6 +50,7 @@ export default function SwapCard() {
     contractName: "SwapStables",
     walletClient: walletClient ?? undefined,
   });
+  // Use scaffold write helper which wraps simulation & transactor
   const { writeContractAsync: writeSwapAsync } = useScaffoldWriteContract({
     contractName: "SwapStables",
     chainId: targetNetwork?.id as any,
@@ -120,6 +121,7 @@ export default function SwapCard() {
     const swapAddressFromDeployed = deployedSwap?.address as `0x${string}` | undefined;
     const swapAddressFromConstants = chainsToContracts[chainId]?.SwapStables as `0x${string}` | undefined;
     const swapAddress = swapAddressFromDeployed ?? swapAddressFromConstants;
+    const routerAddress = "0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D" as `0x${string}`;
 
     try {
       const stableAmount = parseUnits(amount, balanceData?.decimals ?? 18);
@@ -152,8 +154,18 @@ export default function SwapCard() {
       const allowance = (await tokenContract.read.allowance([address as `0x${string}`, swapAddress])) as bigint;
       if (allowance < stableAmount) {
         notification.info(`Requesting approval for ${stableToken.symbol}...`);
-        const makeApprove = () => tokenContract.write.approve({ args: [swapAddress, stableAmount] } as any);
+        // viem's contract.write functions expect an array of args as the first parameter
+        const makeApprove = () => tokenContract.write.approve([swapAddress, stableAmount] as any);
         await writeTx(makeApprove);
+
+        // re-check allowance to ensure approval went through before proceeding
+        const newAllowance = (await tokenContract.read.allowance([address as `0x${string}`, swapAddress])) as bigint;
+        if (newAllowance < stableAmount) {
+          notification.error("Approval did not complete. Please try again.");
+          setIsApproving(false);
+          return;
+        }
+
         notification.success("Approval submitted");
       } else {
         notification.info("Sufficient allowance, skipping approval");
@@ -170,17 +182,60 @@ export default function SwapCard() {
       setIsSwapping(true);
       notification.info("Preparing swap transaction...");
 
+      if (!walletClient || !publicClient) {
+        notification.error("Wallet client or public client not available");
+        setIsApproving(false);
+        return;
+      }
+
       // build simple args: tokenIn, amountIn, paths, amountOutMin, deadline
       const tokenIn = stableToken.address as `0x${string}`;
       const amountIn = parseUnits(amount, balanceData?.decimals ?? 18);
+      const DEFAULT_SLIPPAGE = 0.01; // 1%
 
       // Note: SwapStables expects address[][] calldata paths. For now we pass a single direct path [tokenIn, WETH]
       const wethAddress = chainsToContracts[chainId]?.weth as `0x${string}`;
       const paths = [[tokenIn, wethAddress]];
-      const amountOutMin = 0;
+      let amountOutMin;
+
+      // getAmountsOut on router in order to calculate slippage and set amountOutMin
+      const routerAbi = [
+        {
+          type: "function",
+          name: "getAmountsOut",
+          inputs: [
+            { name: "amountIn", type: "uint256" },
+            { name: "path", type: "address[]" },
+          ],
+          outputs: [{ name: "amounts", type: "uint256[]" }],
+          stateMutability: "view",
+        },
+      ];
+
+      const path = paths[0];
+      const estimatedAmountsOut = await publicClient.readContract({
+        address: routerAddress,
+        abi: routerAbi as any,
+        functionName: "getAmountsOut",
+        args: [amountIn, path],
+      });
+
+      if (estimatedAmountsOut && Array.isArray(estimatedAmountsOut) && estimatedAmountsOut.length > 0) {
+        const out = BigInt(estimatedAmountsOut[estimatedAmountsOut.length - 1]);
+        // integer math: amountOutMin = out - floor(out * 0.01) converted to BigInt
+        amountOutMin = out - (out * BigInt(1)) / BigInt(100);
+      } else {
+        // Could not get quote from router so use local ethPerStablePrice
+        const decimals = balanceData?.decimals ?? 18;
+        const amountFloat = Number(formatUnits(amountIn, decimals));
+        const estimatedOut = amountFloat * ethPerStablePrice;
+        if (!estimatedOut || !isFinite(estimatedOut) || estimatedOut <= 0) amountOutMin = 0;
+        const adjustedOutStr = (estimatedOut * (1 - DEFAULT_SLIPPAGE)).toFixed(18);
+        amountOutMin = parseUnits(adjustedOutStr, 18) as bigint;
+      }
+
       const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes from now
 
-      // Use scaffold write helper which wraps simulation & transactor
       // sanity check: ensure contract code exists at the swap address on the configured RPC
       const code = await publicClient?.getCode({ address: swapAddress as `0x${string}` });
       if (!code || code === "0x" || code === "0x0") {
@@ -298,18 +353,12 @@ export default function SwapCard() {
           </div>
 
           {/* NEEDS UPDATING */}
-          {/* gas and estimate row */}
-          <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
-            <div>Estimated gas: 0.002 ETH</div>
-          </div>
-
-          {/* NEEDS UPDATING */}
           {/* collapsible settings */}
           {isOpenSettings && (
             <div className="mt-4 p-3 rounded-lg bg-white/3 text-sm text-gray-300">
               <div className="flex items-center justify-between">
                 <div>Slippage tolerance</div>
-                <div>0.5%</div>
+                <div>1%</div>
               </div>
               <div className="mt-2 flex items-center justify-between">
                 <div>Deadline</div>

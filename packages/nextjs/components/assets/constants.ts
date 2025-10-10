@@ -12,7 +12,7 @@ export const chainsToContracts: ContractsConfig = {
     dai: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
     usdc: "0x5FbDB2315678afecb367f032d93F642f64180aa3",
     weth: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-    SwapStables: "0x49d358d6C96ee0C6A199c28Dcf3e0FBD8Db5BB33", // Update after deployments
+    SwapStables: "0xbbF04CEC8aBb447B104f2407C651f16C2C1ACE3E", // Update after deployments
   },
 };
 

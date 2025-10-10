@@ -8,6 +8,11 @@ import { MockUniswapV2Router } from "../mocks/MockUniswapV2Router.sol";
 import { ReentrantUniswapMock } from "../mocks/ReentrantUniswapMock.sol";
 
 contract SwapStablesFuzz is Test {
+    // Mirror custom errors from SwapStables for selector access
+    error SwapStables__ZeroAmountIn();
+    error SwapStables__NoPaths();
+    error SwapStables__NoValidPath();
+
     SwapStables public swap;
     ERC20Mock public dai;
     MockUniswapV2Router public router;
@@ -51,7 +56,7 @@ contract SwapStablesFuzz is Test {
         // Ensure USER has tokens and approval when amountIn > 0
         if (amountIn == 0) {
             vm.prank(USER);
-            vm.expectRevert(bytes("SwapStables: ZERO_AMOUNT_IN"));
+            vm.expectRevert(abi.encodeWithSelector(SwapStables__ZeroAmountIn.selector));
             swap.swapStableToETHBest(address(dai), 0, paths, 0, block.timestamp + 1 hours);
             return;
         }
