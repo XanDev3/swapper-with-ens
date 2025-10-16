@@ -62,6 +62,7 @@ export default function SwapCard() {
     token: stableToken.address as `0x${string}`,
   });
 
+  /* Balance formatting */
   const formattedBalance = balanceData
     ? parseFloat(formatUnits(balanceData.value, balanceData.decimals)).toFixed(2)
     : "0";
@@ -266,7 +267,7 @@ export default function SwapCard() {
       <div className="rounded-3xl bg-white/6 backdrop-blur-lg border border-white/10 p-6 shadow-2xl">
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-2xl font-semibold text-white">Swap Stable → wETH</h2>
+            <h2 className="text-2xl font-semibold text-white">Swap Stable → ETH</h2>
             <p className="text-sm text-gray-300 mt-1">Swap DAI/USDC on Uniswap v2</p>
           </div>
           <Bars3Icon onClick={() => setOpenSettings(!isOpenSettings)} className="h-5 w-5" />
@@ -301,11 +302,6 @@ export default function SwapCard() {
               <TokenLogoAndSymbol url={EthNative.logoUrl} tokenName={EthNative.name} />
               <div>
                 <div className="text-sm text-gray-200">To</div>
-                {/* <div className="text-xs text-gray-400 w-1/5">
-                                    WETH 
-                                    ➜ 
-                                    unwrap to ETH
-                                </div> */}
               </div>
             </div>
             <div className="text-right">
@@ -326,12 +322,12 @@ export default function SwapCard() {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
                   </svg>
                 ) : null}
-                ≈ {(Number(amount) * ethPerStablePrice).toFixed(8)} wETH
+                ≈ {(Number(amount) * ethPerStablePrice).toFixed(8)} ETH
               </div>
               <div
                 className={`text-xs transition-colors duration-300 ${priceUpdated ? "text-gray-400/75" : "text-gray-400"}`}
               >
-                wETH Price: {ethPrice.toFixed(2)} wETH/{stableToken.symbol}
+                ETH Price: {ethPrice.toFixed(2)} ETH/{stableToken.symbol}
               </div>
             </div>
           </div>
