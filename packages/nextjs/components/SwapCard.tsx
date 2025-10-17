@@ -235,7 +235,7 @@ export default function SwapCard() {
         amountOutMin = parseUnits(adjustedOutStr, 18) as bigint;
       }
 
-      const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes from now
+      const deadline = Math.floor(Date.now() / 1000) + 60 * 30; // 30 minutes from now
 
       // sanity check: ensure contract code exists at the swap address on the configured RPC
       const code = await publicClient?.getCode({ address: swapAddress as `0x${string}` });
@@ -358,7 +358,7 @@ export default function SwapCard() {
               </div>
               <div className="mt-2 flex items-center justify-between">
                 <div>Deadline</div>
-                <div>20 min</div>
+                <div>30 min</div>
               </div>
             </div>
           )}

@@ -22,12 +22,10 @@ const Home: NextPage = () => {
   return (
     <div className={themedClassName}>
       <SwapHeader />
-
       <main className="py-8 px-4 sm:px-8 flex flex-col items-center">
         <div className="w-full max-w-2xl">
           <SwapCard />
         </div>
-
         <div className="mt-8 text-center text-sm text-gray-200">
           <p>
             Built with{" "}

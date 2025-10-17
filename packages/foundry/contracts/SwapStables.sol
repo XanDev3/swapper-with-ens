@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity >=0.8.0 <0.9.0;
+pragma solidity >=0.8.11 <0.9.0;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
@@ -70,7 +70,6 @@ contract SwapStables is Ownable, ReentrancyGuard {
             address[] memory p = paths[i];
             // skip invalid small paths
             if (p.length < 2) continue;
-            // quick try/catch is not available for external view calls in solidity <0.8.10? But we assume router is well-behaved in tests
             try uniV2.getAmountsOut(amountIn, p) returns (uint256[] memory amounts) {
                 uint256 out = amounts[amounts.length - 1];
                 if (out > bestOut) {
@@ -78,7 +77,7 @@ contract SwapStables is Ownable, ReentrancyGuard {
                     bestIndex = i;
                 }
             } catch {
-                // ignore failing path
+                // ignore failing path, reverts by bestOut remaining 0
                 continue;
             }
         }
@@ -104,7 +103,7 @@ contract SwapStables is Ownable, ReentrancyGuard {
         if (paths.length == 0) revert SwapStables__NoPaths();
         if (address(uniV2) == address(0)) revert SwapStables__RouterNotConfigured();
 
-        // deadline check: protect callers by enforcing deadline locally (don't rely solely on router)
+        // deadline check: enforcing deadline locally in case of router failure
         if (deadline < block.timestamp) revert SwapStables__DeadlineExpired();
 
         // pull tokens from caller
@@ -123,7 +122,7 @@ contract SwapStables is Ownable, ReentrancyGuard {
 
         address[] memory bestPath = paths[bestIndex];
 
-        // execute swap: expect last token to be WETH so we can receive ETH
+        // execute swap: expect last token to be ETH
         // the router will return ETH to this contract for swapExactTokensForETH
         uint256[] memory amounts =
             uniV2.swapExactTokensForETH(amountIn, amountOutMin, bestPath, address(this), deadline);
