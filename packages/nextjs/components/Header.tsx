@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTheme } from "next-themes";
 import { hardhat } from "viem/chains";
 import { Bars3Icon, BugAntIcon } from "@heroicons/react/24/outline";
 import { FaucetButton, RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
@@ -17,8 +18,12 @@ type HeaderMenuLink = {
 
 export const menuLinks: HeaderMenuLink[] = [
   {
-    label: "SwapStables",
+    label: "Home",
     href: "/",
+  },
+  {
+    label: "Docs",
+    href: "/docs",
   },
   {
     label: "Debug Contracts",
@@ -57,6 +62,18 @@ export const HeaderMenuLinks = () => {
  * Site header
  */
 export const Header = () => {
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const logoSrc = mounted && resolvedTheme === "light" ? "/SwapStables_icon_black.png" : "/SwapStables_icon_white.png";
+  const themedIconBgGradientClassName =
+    mounted && resolvedTheme === "light"
+      ? "bg-gradient-to-br from-pink-600 via-purple-400 to-indigo-500 flex relative w-10 h-10 rounded-lg items-center justify-center shadow-md"
+      : "bg-gradient-to-br from-indigo-900 via-purple-800 to-pink-700 flex relative w-10 h-10 rounded-lg items-center justify-center shadow-md";
   const { targetNetwork } = useTargetNetwork();
   const isLocalNetwork = targetNetwork.id === hardhat.id;
 
@@ -82,12 +99,12 @@ export const Header = () => {
           </ul>
         </details>
         <Link href="/" passHref className="hidden lg:flex items-center gap-2 ml-4 mr-6 shrink-0">
-          <div className="flex relative w-10 h-10">
-            <Image alt="SE2 logo" className="cursor-pointer" fill src="/logo.svg" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-bold leading-tight">Scaffold-ETH</span>
-            <span className="text-xs">Ethereum dev stack</span>
+          <div className="flex items-center gap-1">
+            <div className={themedIconBgGradientClassName}>
+              <Image alt="StableSwap logo" className="cursor-pointer" fill src={logoSrc} />
+              {/* <span className="text-white font-semibold">$</span> */}
+            </div>
+            <div className="text-lg font-semibold leading-tight">SwapStables</div>
           </div>
         </Link>
         <ul className="hidden lg:flex lg:flex-nowrap menu menu-horizontal px-1 gap-2">
