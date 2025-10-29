@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import type { NextPage } from "next";
 import { useTheme } from "next-themes";
 import SwapCard from "~~/components/SwapCard";
-import SwapHeader from "~~/components/SwapHeader";
 
 const Home: NextPage = () => {
   const { resolvedTheme } = useTheme();
@@ -21,7 +20,6 @@ const Home: NextPage = () => {
 
   return (
     <div className={themedClassName}>
-      <SwapHeader />
       <main className="py-8 px-4 sm:px-8 flex flex-col items-center">
         <div className="w-full max-w-2xl">
           <SwapCard />

@@ -1,3 +1,25 @@
+# SwapStables
+
+A minimal dApp for swapping stable tokens (DAI, USDC) to ETH via Uniswap V2, built with Scaffold-ETH 2.
+
+## Quick Start for Forkers
+
+This project is designed to work on **mainnet only**. To use this project:
+
+1. **Fork and clone** this repository
+2. **Deploy SwapStables.sol** to mainnet (see deployment instructions below)
+3. **Update constants**: After deployment, update `packages/nextjs/components/constants.ts` with your deployed `SwapStables: ` contract address
+4. **Configure RPC**: Ensure your app points to mainnet RPC endpoints via proper .env variables for API key and RPC url
+5. **Test**: See testing documentation at `packages/foundry/test/integration/README.md`
+
+### Deployment Notes
+
+- The SwapStables contract requires the Uniswap V2 Router address as a constructor parameter
+- Mainnet Uniswap V2 Router (please verify for yourself on etherscan or uniswap docs): `0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D`
+- After deployment, if the scaffold-eth deployer was used the contract address in `deployedContracts.ts` should have been updated to connect your frontend and you will need to add that address to `packages/nextjs/components/constants.ts` under `SwapStables:` for which ever chain you are using (31337 for local anvil mainnet fork or 1 for actual mainnet).
+
+---
+
 # 🏗 Scaffold-ETH 2
 
 <h4 align="center">

@@ -5,6 +5,237 @@
 import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
 
 const deployedContracts = {
+  1: {
+    SwapStables: {
+      address: "0xbbf04cec8abb447b104f2407c651f16c2c1ace3e",
+      abi: [
+        {
+          type: "constructor",
+          inputs: [
+            {
+              name: "_uniV2",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "receive",
+          stateMutability: "payable",
+        },
+        {
+          type: "function",
+          name: "owner",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "function",
+          name: "renounceOwnership",
+          inputs: [],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "swapStableToETHBest",
+          inputs: [
+            {
+              name: "tokenIn",
+              type: "address",
+              internalType: "address",
+            },
+            {
+              name: "amountIn",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "paths",
+              type: "address[][]",
+              internalType: "address[][]",
+            },
+            {
+              name: "amountOutMin",
+              type: "uint256",
+              internalType: "uint256",
+            },
+            {
+              name: "deadline",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          outputs: [
+            {
+              name: "amountOut",
+              type: "uint256",
+              internalType: "uint256",
+            },
+          ],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "transferOwnership",
+          inputs: [
+            {
+              name: "newOwner",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+          outputs: [],
+          stateMutability: "nonpayable",
+        },
+        {
+          type: "function",
+          name: "uniV2",
+          inputs: [],
+          outputs: [
+            {
+              name: "",
+              type: "address",
+              internalType: "contract IUniswapV2Router02",
+            },
+          ],
+          stateMutability: "view",
+        },
+        {
+          type: "event",
+          name: "OwnershipTransferred",
+          inputs: [
+            {
+              name: "previousOwner",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "newOwner",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "event",
+          name: "SwapExecuted",
+          inputs: [
+            {
+              name: "sender",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "tokenIn",
+              type: "address",
+              indexed: true,
+              internalType: "address",
+            },
+            {
+              name: "amountIn",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+            {
+              name: "amountOut",
+              type: "uint256",
+              indexed: false,
+              internalType: "uint256",
+            },
+          ],
+          anonymous: false,
+        },
+        {
+          type: "error",
+          name: "OwnableInvalidOwner",
+          inputs: [
+            {
+              name: "owner",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+        },
+        {
+          type: "error",
+          name: "OwnableUnauthorizedAccount",
+          inputs: [
+            {
+              name: "account",
+              type: "address",
+              internalType: "address",
+            },
+          ],
+        },
+        {
+          type: "error",
+          name: "ReentrancyGuardReentrantCall",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__ApproveFailed",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__DeadlineExpired",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__EthSendFailed",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__InvalidRouter",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__NoPaths",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__NoValidPath",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__RouterNotConfigured",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__TransferFromFailed",
+          inputs: [],
+        },
+        {
+          type: "error",
+          name: "SwapStables__ZeroAmountIn",
+          inputs: [],
+        },
+      ],
+      inheritedFunctions: {},
+      deployedOnBlock: 23678299,
+    },
+  },
   31337: {
     SwapStables: {
       address: "0xbbf04cec8abb447b104f2407c651f16c2c1ace3e",

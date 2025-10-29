@@ -2,7 +2,7 @@
 
 This document describes how to run and reason about the integration tests for `SwapStables`.
 
-These tests exercise `SwapStables` against a mainnet fork using the real Uniswap V2 router and real token pools. They are intended to validate pricing, path selection, slippage behavior, deadlines, and large-swap effects under real-world liquidity.
+These tests use `SwapStables` against a mainnet fork using the real Uniswap V2 router and real token pools. They are intended to validate pricing, path selection, slippage behavior, deadlines, and large-swap effects under real-world liquidity.
 
 ---
 
