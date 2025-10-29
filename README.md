@@ -2,7 +2,7 @@
 
 A minimal dApp for swapping stable tokens (DAI, USDC) to ETH via Uniswap V2, built with Scaffold-ETH 2.
 
-## Quick Start for Forkers
+## Getting Started
 
 This project is designed to work on **mainnet only**. To use this project:
 
