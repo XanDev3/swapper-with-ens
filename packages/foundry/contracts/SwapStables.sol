@@ -137,5 +137,5 @@ contract SwapStables is Ownable, ReentrancyGuard {
     }
 
     // receive ETH from router when swapping
-    receive() external payable { }
+    receive() external payable {}
 }
