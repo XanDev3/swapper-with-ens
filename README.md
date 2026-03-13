@@ -2,6 +2,12 @@
 
 A minimal dApp for swapping stable tokens (DAI, USDC) to ETH via Uniswap V2, built with Scaffold-ETH 2.
 
+## Mainnet Deployment
+
+The `SwapStables` contract is deployed on Ethereum Mainnet at:
+
+**`0xbbf04cec8abb447b104f2407c651f16c2c1ace3e`**
+
 ## Getting Started
 
 This project is designed to work on **mainnet only**. To use this project:
